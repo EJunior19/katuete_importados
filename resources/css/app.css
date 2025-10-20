@@ -1,0 +1,11 @@
+/* Tailwind v4 */
+@import "tailwindcss";
+
+/* Plugins opcionales */
+@plugin "@tailwindcss/forms";
+
+/* Tus estilos personalizados */
+body {
+  @apply bg-slate-50 text-slate-900;
+}
+
