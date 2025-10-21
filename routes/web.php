@@ -43,11 +43,19 @@ use App\Http\Controllers\PurchaseInvoiceController;   // <-- FALTABA
 use App\Models\Invoice;
 
 /**
- * Login público
+ * Login público (guest) + raíz
  */
-Route::get('/', [AuthController::class, 'showLogin'])->name('login');
-Route::post('/', [AuthController::class, 'login'])->name('login.post');
-Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+Route::middleware('guest')->group(function () {
+    Route::get('/login',  [AuthController::class, 'showLogin'])->name('login');
+    Route::post('/login', [AuthController::class, 'login'])->name('login.post');
+});
+
+// Raíz -> login
+Route::get('/', fn () => redirect('/login'));
+
+// Logout solo autenticado
+Route::middleware('auth')->post('/logout', [AuthController::class, 'logout'])->name('logout');
+
 
 /**
  * API pública (JSON)
