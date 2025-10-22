@@ -1,0 +1,63 @@
+name: Deploy Katuete ERP
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -Eeuo pipefail
+            cd ${{ secrets.APP_DIR }}  # /var/www/erp
+
+            echo "==> Git sync"
+            git fetch --all
+            git reset --hard origin/main
+
+            echo "==> Maintenance ON"
+            if [ -f artisan ]; then php artisan down || true; fi
+
+            echo "==> Composer"
+            if command -v composer >/dev/null 2>&1; then
+              composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+            fi
+
+            echo "==> Build front (si aplica)"
+            if command -v npm >/dev/null 2>&1 && [ -f package.json ]; then
+              npm ci || npm install
+              npm run build
+            fi
+
+            echo "==> Migraciones y cachés"
+            if [ -f artisan ]; then
+              php artisan migrate --force
+              php artisan config:cache
+              php artisan route:cache
+              php artisan view:cache || true
+            fi
+
+            echo "==> Permisos"
+            chown -R deploy:www-data storage bootstrap/cache || true
+            chmod -R ug+rwx storage bootstrap/cache || true
+
+            echo "==> Reload servicios"
+            sudo systemctl reload php8.3-fpm || sudo systemctl reload php8.2-fpm || true
+            sudo systemctl reload nginx || sudo systemctl reload apache2 || true
+
+            echo "==> Maintenance OFF"
+            if [ -f artisan ]; then php artisan up || true; fi
+
+            echo "✅ Deploy OK en ${{ secrets.APP_DIR }}"
+
