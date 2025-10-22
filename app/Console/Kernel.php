@@ -40,6 +40,10 @@ class Kernel extends ConsoleKernel
     'files' => \App\Http\Middleware\NoopMiddleware::class,
 
 ];
+    protected $commands = [
+    \App\Console\Commands\ClientsImportFromSheet::class,
+];
+
 
 
 }

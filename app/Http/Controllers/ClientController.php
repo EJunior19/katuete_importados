@@ -13,13 +13,37 @@ class ClientController extends Controller
 {
     public function index()
     {
-        $clients = Client::query()
-            ->latest()
-            ->paginate(12);
+        // Parámetros de búsqueda
+        $q       = request('q');
+        $status  = request('status', 'all'); // all | active | inactive
+        $test    = request('test', 'all');   // all | prod | test
+        $perPage = (int) request('per_page', 25);
+        $perPage = in_array($perPage, [10, 25, 50, 100]) ? $perPage : 25;
+
+        // Consulta principal
+        $clients = \App\Models\Client::query()
+            ->when($q, function ($query) use ($q) {
+                $like = '%' . str_replace(' ', '%', $q) . '%';
+                $query->where(function ($w) use ($like) {
+                    $w->where('name', 'ILIKE', $like)
+                    ->orWhere('email', 'ILIKE', $like)
+                    ->orWhere('phone', 'ILIKE', $like)
+                    ->orWhere('code', 'ILIKE', $like)
+                    ->orWhere('ruc', 'ILIKE', $like);
+                });
+            })
+            ->when($status !== 'all', function ($query) use ($status) {
+                $query->where('active', $status === 'active' ? 1 : 0);
+            })
+            ->when($test !== 'all', function ($query) use ($test) {
+                $query->where('is_test', $test === 'test' ? 1 : 0);
+            })
+            ->orderByDesc('id')
+            ->paginate($perPage)
+            ->appends(request()->query()); // Mantiene filtros en la paginación
 
         return view('clients.index', compact('clients'));
     }
-
     // Papelera (opcional, si usás SoftDeletes)
     public function deleted()
     {
