@@ -123,9 +123,6 @@ return [
         // sin 'store' cuando driver = file
     ],
 
-
-   'providers' => [
-
     /*
     |--------------------------------------------------------------------------
     | Laravel Framework Service Providers

@@ -1,7 +1,7 @@
 @extends('layout.admin')
 @section('content')
 
-<h1 class="text-2xl font-bold text-gray-100 mb-4">📊 Panel principal</h1>
+<h1 class="text-2xl font-bold text-black-100 mb-4">📊 Panel principal</h1>
 
 {{-- Tarjetas resumen --}}
 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
