@@ -9,7 +9,7 @@ use Carbon\Carbon;
 class Credit extends Model
 {
     // ✅ Estados válidos (coinciden con el CHECK de Postgres)
-    public const ST_PENDING = 'pending';
+    const ST_PENDING = 'pendiente_aprobacion';
     public const ST_PARTIAL = 'partial';
     public const ST_PAID    = 'paid';
 
