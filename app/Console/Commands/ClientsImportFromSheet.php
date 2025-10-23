@@ -10,12 +10,15 @@ use App\Models\Client;
 
 class ClientsImportFromSheet extends Command
 {
-    protected $signature = 'clients:import-sheet
-        {--url= : URL del Google Sheet (vista o export)}
-        {--sheet=Clientes : Nombre de pestaña del Sheet}
-        {--path= : Ruta a CSV local (alternativa a --url)}
-        {--update : Actualizar si el phone ya existe}
-        {--dry : Simulación (no guarda en DB)}';
+    protected $signature = <<<SIG
+        clients:import-sheets
+            {--url= : URL del Google Sheet (vista o export)}
+            {--sheet=Clientes : Nombre de pestaña del Sheet}
+            {--path= : Ruta a CSV local (alternativa a --url)}
+            {--update : Actualizar si el phone ya existe}
+            {--dry : Simulación (no guarda en DB)}
+        SIG;
+
 
     protected $description = 'Importa clientes (Nombre, Apellido, Teléfono) y genera ruc/email/address; evita duplicados y guarda en clients.';
 

@@ -1,3 +1,4 @@
+{{-- resources/views/credits/index.blade.php --}}
 @extends('layout.admin')
 
 @section('content')
@@ -10,6 +11,9 @@
         Gestión de cuentas por cobrar
       </span>
     </h1>
+
+    {{-- (opcional) botón crear crédito --}}
+    {{-- <x-create-button route="{{ route('credits.create') }}" text="Nuevo crédito" /> --}}
   </div>
 </div>
 
@@ -128,12 +132,14 @@
 
           <tr class="hover:bg-slate-800/50 transition {{ $rowClass }}">
             <td class="px-4 py-3 font-mono text-slate-300">#{{ $credit->id }}</td>
+
             <td class="px-4 py-3">
               <div class="flex flex-col">
                 <span class="font-medium">{{ $credit->client->name ?? '—' }}</span>
-                <span class="text-xs text-slate-400">CI/RUC: {{ $credit->client->ruc ?? '—' }}
+                <span class="text-xs text-slate-400">CI/RUC: {{ $credit->client->ruc ?? '—' }}</span>
               </div>
             </td>
+
             <td class="px-4 py-3">#{{ $credit->sale->id ?? '—' }}</td>
 
             <td class="px-4 py-3 text-right">
@@ -168,42 +174,30 @@
                 :label="ucfirst($credit->status)" />
             </td>
 
-            {{-- ===== Acciones ordenadas: Ver · Recibo · Eliminar ===== --}}
+            {{-- ===== Acciones con componentes ===== --}}
             <td class="px-4 py-3">
               <div class="flex items-center justify-end gap-2">
                 {{-- Ver --}}
-                <a href="{{ route('credits.show', $credit) }}"
-                   class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-sky-500/40 text-sky-300 hover:bg-sky-500/10 text-xs font-medium transition"
-                   title="Ver detalle del crédito">
-                  👁️ Ver
-                </a>
+                <x-link-button 
+                  color="sky" icon="👁️"
+                  :href="route('credits.show', $credit)"
+                  text="Ver" />
 
                 {{-- Recibo (si hay al menos un pago) --}}
                 @if($lastPayment)
-                  <a href="{{ route('payments.receipt', $lastPayment) }}"
-                     target="_blank"
-                     class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-black md:text-white text-xs font-semibold transition"
-                     title="Imprimir último recibo">
-                    🧾 Recibo
-                  </a>
+                  <x-link-button
+                    color="emerald" icon="🧾"
+                    :href="route('payments.receipt', $lastPayment)"
+                    target="_blank"
+                    text="Recibo" />
                 @else
-                  <button disabled
-                          class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-500 text-xs font-medium cursor-not-allowed"
-                          title="Aún sin pagos">
-                    🧾 Recibo
-                  </button>
+                  <x-link-button color="slate" icon="🧾" :disabled="true" text="Recibo" />
                 @endif
 
-                {{-- Eliminar --}}
-                <form action="{{ route('credits.destroy', $credit) }}" method="POST"
-                      onsubmit="return confirm('¿Eliminar definitivamente el crédito #{{ $credit->id }}?')">
-                  @csrf @method('DELETE')
-                  <button type="submit"
-                          class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-rose-600/50 text-rose-300 hover:bg-rose-900/30 text-xs font-medium transition"
-                          title="Eliminar crédito">
-                    🗑️ Eliminar
-                  </button>
-                </form>
+                {{-- Eliminar con el mismo componente que usás en Ventas --}}
+                <x-delete-button 
+                  :action="route('credits.destroy',$credit)" 
+                  :name="'el crédito #'.$credit->id" />
               </div>
             </td>
           </tr>
@@ -223,7 +217,7 @@
   </div>
 
   <div class="p-4 border-t border-slate-700">
-    {{ $credits->onEachSide(1)->links() }}
+    {{ $credits->onEachSide(1)->withQueryString()->links() }}
   </div>
 </div>
 @endsection

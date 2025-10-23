@@ -55,7 +55,7 @@
 {{-- ====== Encabezado con botón Volver + acciones ====== --}}
 <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between mb-3">
   <div class="flex items-center gap-3">
-    <button class="btn-ghost" onclick="window.history.length > 1 ? history.back() : window.location.assign('{{ route('dashboard') }}')">
+    <button class="btn-ghost" onclick="window.history.length > 1 ? history.back() : window.location.assign('{{ route('dashboard.index') }}')">
       ⬅ Volver
     </button>
     <div>
