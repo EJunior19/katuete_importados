@@ -18,18 +18,22 @@ class SaleController extends Controller
      * =============================== */
     public function index(Request $request)
     {
-        $q = $request->q;
-        $estado = $request->estado;
+        $q      = $request->q;
+        $status = $request->status; // <- usar status (coincide con la DB)
 
         $sales = Sale::with('client')
-            ->when($q, function($query, $q) {
-                $query->where(function($sub) use ($q) {
-                    $sub->whereHas('client', fn($c) => $c->where('name', 'like', "%{$q}%"))
-                        ->orWhere('code', 'like', "%{$q}%")
+            ->when($q, function ($query, $q) {
+                $query->where(function ($sub) use ($q) {
+                    $sub->whereHas('client', fn ($c) => $c->where('name', 'like', "%{$q}%"))
                         ->orWhere('nota', 'like', "%{$q}%");
+
+                    // Si q es número, permite buscar por ID exacto
+                    if (ctype_digit((string) $q)) {
+                        $sub->orWhere('id', (int) $q);
+                    }
                 });
             })
-            ->when($estado, fn($query) => $query->where('estado', $estado))
+            ->when($status, fn ($query) => $query->where('status', $status))
             ->latest()
             ->paginate(10);
 
@@ -39,7 +43,6 @@ class SaleController extends Controller
     /* ===============================
      * CREATE
      * =============================== */
-    
     public function create()
     {
         $clients = Client::orderBy('name')->get(['id', 'name']);
@@ -80,10 +83,9 @@ class SaleController extends Controller
         }
 
         // Cálculo de totales
-        [$g10,$i10,$g5,$i5,$ex] = [0,0,0,0,0];
-
+        [$g10, $i10, $g5, $i5, $ex] = [0, 0, 0, 0, 0];
         foreach ($data['items'] as $it) {
-            $line = (float)$it['unit_price'] * (int)$it['qty'];
+            $line = (float) $it['unit_price'] * (int) $it['qty'];
 
             if ($it['iva_type'] === '10') {
                 $grav = $line / 1.1;
@@ -97,13 +99,8 @@ class SaleController extends Controller
                 $ex  += (int) round($line);
             }
         }
-
         $totalIva = $i10 + $i5;
         $total    = $g10 + $g5 + $ex + $totalIva;
-
-
-        $totalIva = $i10 + $i5;
-        $total = $g10 + $g5 + $ex + $totalIva;
 
         return DB::transaction(function () use ($data, $isCredit, $g10, $i10, $g5, $i5, $ex, $totalIva, $total) {
 
@@ -112,7 +109,7 @@ class SaleController extends Controller
                 $stock = (int) Product::whereKey($it['product_id'])
                     ->lockForUpdate()
                     ->value('stock');
-                if ($stock < (int)$it['qty']) {
+                if ($stock < (int) $it['qty']) {
                     return back()
                         ->withErrors(['stock' => "Producto {$it['product_id']}: stock {$stock}, requerido {$it['qty']}"])
                         ->withInput();
@@ -121,18 +118,18 @@ class SaleController extends Controller
 
             // Cabecera de venta
             $sale = Sale::create([
-                'client_id'   => $data['client_id'],
-                'modo_pago'   => $data['modo_pago'],
-                'fecha'       => $data['fecha'],
-                'nota'        => $data['nota'] ?? null,
-                'estado'      => 'pendiente_aprobacion',
-                'total'       => $total,
-                'gravada_10'  => $g10,
-                'iva_10'      => $i10,
-                'gravada_5'   => $g5,
-                'iva_5'       => $i5,
-                'exento'      => $ex,
-                'total_iva'   => $totalIva,
+                'client_id'  => $data['client_id'],
+                'modo_pago'  => $data['modo_pago'],
+                'fecha'      => $data['fecha'],
+                'nota'       => $data['nota'] ?? null,
+                'status'     => 'pendiente_aprobacion', // <- status (ya no 'estado')
+                'total'      => $total,
+                'gravada_10' => $g10,
+                'iva_10'     => $i10,
+                'gravada_5'  => $g5,
+                'iva_5'      => $i5,
+                'exento'     => $ex,
+                'total_iva'  => $totalIva,
             ]);
 
             // Detalle de ítems
@@ -160,9 +157,9 @@ class SaleController extends Controller
                         : Carbon::now()->addMonthNoOverflow());
 
                 foreach ($data['items'] as $it) {
-                    $n = (int)($it['installments'] ?? 0);
-                    $pc = (float)($it['installment_price'] ?? 0);
-                    $qty = (int)$it['qty'];
+                    $n   = (int) ($it['installments'] ?? 0);
+                    $pc  = (float) ($it['installment_price'] ?? 0);
+                    $qty = (int) $it['qty'];
 
                     if ($n > 0 && $pc > 0) {
                         for ($k = 1; $k <= $n; $k++) {
@@ -172,7 +169,7 @@ class SaleController extends Controller
                                 'amount'    => (int) round($pc * $qty),
                                 'balance'   => (int) round($pc * $qty),
                                 'due_date'  => $firstDue->copy()->addMonthsNoOverflow($k - 1)->toDateString(),
-                                'status'    => Credit::ST_PENDING, // ✅ corregido
+                                'status'    => Credit::ST_PENDING,
                             ]);
                         }
                     }
@@ -193,7 +190,7 @@ class SaleController extends Controller
             'client',
             'items.product',
             'credits.payments',
-            'invoice', // ✅ necesario para mostrar los documentos
+            'invoice',
         ]);
 
         return view('sales.show', compact('sale'));
@@ -219,7 +216,7 @@ class SaleController extends Controller
             'fecha'     => 'nullable|date',
             'primer_vencimiento' => 'nullable|date',
             'nota'      => 'nullable|string|max:2000',
-            'estado'    => 'required|in:pendiente_aprobacion,aprobado,rechazado,editable,cancelado',
+            'status'    => 'required|in:pendiente_aprobacion,aprobado,rechazado,editable,cancelado',
             'items'     => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.unit_price' => 'required|numeric|min:0',
@@ -232,10 +229,9 @@ class SaleController extends Controller
         $isCredit = $data['modo_pago'] === 'credito';
 
         // Cálculo de totales
-        [$g10,$i10,$g5,$i5,$ex] = [0,0,0,0,0];
-
+        [$g10, $i10, $g5, $i5, $ex] = [0, 0, 0, 0, 0];
         foreach ($data['items'] as $it) {
-            $line = (float)$it['unit_price'] * (int)$it['qty'];
+            $line = (float) $it['unit_price'] * (int) $it['qty'];
 
             if ($it['iva_type'] === '10') {
                 $grav = $line / 1.1;
@@ -249,12 +245,10 @@ class SaleController extends Controller
                 $ex  += (int) round($line);
             }
         }
-
         $totalIva = $i10 + $i5;
         $total    = $g10 + $g5 + $ex + $totalIva;
 
-
-        return DB::transaction(function () use ($sale,$data,$isCredit,$g10,$i10,$g5,$i5,$ex,$totalIva,$total) {
+        return DB::transaction(function () use ($sale, $data, $isCredit, $g10, $i10, $g5, $i5, $ex, $totalIva, $total) {
 
             // Actualizar ítems
             $sale->items()->delete();
@@ -274,12 +268,12 @@ class SaleController extends Controller
             }
 
             // Validar stock si pasa a aprobado
-            if ($data['estado'] === 'aprobado') {
+            if ($data['status'] === 'aprobado') {
                 foreach ($sale->items as $it) {
                     $stock = (int) Product::whereKey($it->product_id)
                         ->lockForUpdate()
                         ->value('stock');
-                    if ($stock < (int)$it->qty) {
+                    if ($stock < (int) $it->qty) {
                         return back()
                             ->withErrors(['stock' => "Producto {$it->product_id}: stock {$stock}, requerido {$it->qty}"])
                             ->withInput();
@@ -289,18 +283,18 @@ class SaleController extends Controller
 
             // Actualizar cabecera
             $sale->update([
-                'client_id'   => $data['client_id'],
-                'modo_pago'   => $data['modo_pago'],
-                'fecha'       => $data['fecha'],
-                'nota'        => $data['nota'] ?? null,
-                'estado'      => $data['estado'],
-                'total'       => $total,
-                'gravada_10'  => $g10,
-                'iva_10'      => $i10,
-                'gravada_5'   => $g5,
-                'iva_5'       => $i5,
-                'exento'      => $ex,
-                'total_iva'   => $totalIva,
+                'client_id'  => $data['client_id'],
+                'modo_pago'  => $data['modo_pago'],
+                'fecha'      => $data['fecha'],
+                'nota'       => $data['nota'] ?? null,
+                'status'     => $data['status'], // <- status
+                'total'      => $total,
+                'gravada_10' => $g10,
+                'iva_10'     => $i10,
+                'gravada_5'  => $g5,
+                'iva_5'      => $i5,
+                'exento'     => $ex,
+                'total_iva'  => $totalIva,
             ]);
 
             // Regenerar cuotas si es crédito
@@ -314,9 +308,9 @@ class SaleController extends Controller
                         : Carbon::now()->addMonthNoOverflow());
 
                 foreach ($data['items'] as $it) {
-                    $n = (int)($it['installments'] ?? 0);
-                    $pc = (float)($it['installment_price'] ?? 0);
-                    $qty = (int)$it['qty'];
+                    $n   = (int) ($it['installments'] ?? 0);
+                    $pc  = (float) ($it['installment_price'] ?? 0);
+                    $qty = (int) $it['qty'];
 
                     if ($n > 0 && $pc > 0) {
                         for ($k = 1; $k <= $n; $k++) {
@@ -326,7 +320,7 @@ class SaleController extends Controller
                                 'amount'    => (int) round($pc * $qty),
                                 'balance'   => (int) round($pc * $qty),
                                 'due_date'  => $firstDue->copy()->addMonthsNoOverflow($k - 1)->toDateString(),
-                                'status'    => Credit::ST_PENDING, // ✅ corregido
+                                'status'    => Credit::ST_PENDING,
                             ]);
                         }
                     }
@@ -334,7 +328,7 @@ class SaleController extends Controller
             }
 
             return redirect()->route('sales.show', $sale)
-                ->with('ok','✅ Venta actualizada correctamente.');
+                ->with('ok', '✅ Venta actualizada correctamente.');
         });
     }
 
@@ -343,12 +337,12 @@ class SaleController extends Controller
      * =============================== */
     public function print(Sale $sale)
     {
-        if ($sale->estado !== 'aprobado') {
+        if ($sale->status !== 'aprobado') { // <- status
             return redirect()->route('sales.show', $sale)
-                ->with('error','⚠️ Solo se pueden imprimir ventas aprobadas.');
+                ->with('error', '⚠️ Solo se pueden imprimir ventas aprobadas.');
         }
 
-        $sale->load('client','items.product');
+        $sale->load('client', 'items.product');
         return view('sales.print', compact('sale'));
     }
 
@@ -358,15 +352,15 @@ class SaleController extends Controller
     public function updateStatus(Request $request, Sale $sale)
     {
         $data = $request->validate([
-            'estado' => 'required|in:pendiente_aprobacion,aprobado,rechazado,editable,cancelado',
+            'status' => 'required|in:pendiente_aprobacion,aprobado,rechazado,editable,cancelado',
         ]);
 
-        if ($data['estado'] === 'aprobado') {
+        if ($data['status'] === 'aprobado') {
             foreach ($sale->items as $it) {
                 $stock = (int) Product::whereKey($it->product_id)
                     ->lockForUpdate()
                     ->value('stock');
-                if ($stock < (int)$it->qty) {
+                if ($stock < (int) $it->qty) {
                     return back()
                         ->withErrors(['stock' => "Producto {$it->product_id}: stock {$stock}, requerido {$it->qty}"])
                         ->withInput();
@@ -374,7 +368,7 @@ class SaleController extends Controller
             }
         }
 
-        $sale->update(['estado' => $data['estado']]);
+        $sale->update(['status' => $data['status']]); // <- status
 
         return redirect()->route('sales.show', $sale)
             ->with('success', 'Estado actualizado correctamente.');
