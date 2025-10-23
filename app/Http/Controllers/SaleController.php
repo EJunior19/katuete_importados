@@ -169,8 +169,7 @@ class SaleController extends Controller
                                 'amount'    => (int) round($pc * $qty),
                                 'balance'   => (int) round($pc * $qty),
                                 'due_date'  => $firstDue->copy()->addMonthsNoOverflow($k - 1)->toDateString(),
-                                'status' => 'pendiente_aprobacion',
-
+                                'status'    => 'pendiente',
                             ]);
                         }
                     }
