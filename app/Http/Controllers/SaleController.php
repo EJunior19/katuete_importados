@@ -150,32 +150,34 @@ class SaleController extends Controller
 
             // Generar cuotas si es crédito
             if ($isCredit) {
-                $firstDue = $data['primer_vencimiento']
+                $firstDue = !empty($data['primer_vencimiento'])
                     ? Carbon::parse($data['primer_vencimiento'])
                     : (!empty($data['fecha'])
                         ? Carbon::parse($data['fecha'])->addMonthNoOverflow()
                         : Carbon::now()->addMonthNoOverflow());
 
                 foreach ($data['items'] as $it) {
-                    $n   = (int) ($it['installments'] ?? 0);
-                    $pc  = (float) ($it['installment_price'] ?? 0);
-                    $qty = (int) $it['qty'];
+                    $n   = (int) ($it['installments'] ?? 0);         // número de cuotas
+                    $pc  = (float) ($it['installment_price'] ?? 0);  // precio por cuota (por unidad)
+                    $qty = (int) ($it['qty'] ?? 1);                  // cantidad de unidades
 
-                    if ($n > 0 && $pc > 0) {
+                    if ($n > 0 && $pc > 0 && $qty > 0) {
+                        $montoCuota = (int) round($pc * $qty);
+
                         for ($k = 1; $k <= $n; $k++) {
                             Credit::create([
-                                'sale_id'   => $sale->id,
-                                'client_id' => $data['client_id'],
-                                'amount'    => (int) round($pc * $qty),
-                                'balance'   => (int) round($pc * $qty),
+                                'sale_id'   => $sale->id,                 // <- aquí $sale, no $venta
+                                'client_id' => $data['client_id'],        // <- del request, no $cliente
+                                'amount'    => $montoCuota,
+                                'balance'   => $montoCuota,
                                 'due_date'  => $firstDue->copy()->addMonthsNoOverflow($k - 1)->toDateString(),
-                                'status' => \App\Models\Credit::ST_PENDING, // 'pendiente'
-
+                                'status'    => Credit::ST_PENDING,        // mutator lo normaliza a 'pendiente'
                             ]);
                         }
                     }
                 }
             }
+
 
             return redirect()->route('sales.show', $sale)
                 ->with('ok', '✅ Venta registrada correctamente.');
